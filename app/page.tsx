@@ -25,18 +25,21 @@ export default function Page() {
 
   useEffect(() => {
     (async () => {
+      // Check the cookie FIRST. If it exists, go straight to dashboard —
+      // never show the gate, no matter what happens with storage access.
+      if (hasSessionCookie()) {
+        setView("dashboard");
+        return;
+      }
+      // No cookie = not logged in. This is the only case where the gate
+      // is relevant, so this is the only path that touches the API.
       try {
-        if (typeof document.hasStorageAccess !== "function") {
-          // API unsupported (e.g. insecure context) — fall back as if access is already available
-          setView(hasSessionCookie() ? "dashboard" : "login");
+        if (typeof document.requestStorageAccess !== "function") {
+          setView("login");
           return;
         }
-        // hasStorageAccess() reports false on every fresh page load per spec,
-        // regardless of any earlier grant — so the gate always shows before
-        // login. Clicking "Allow" resolves instantly if already granted
-        // (no friction), or shows the real browser prompt if not.
-        const has = await document.hasStorageAccess();
-        setView(has ? (hasSessionCookie() ? "dashboard" : "login") : "gate");
+        await document.requestStorageAccess();
+        setView("login");
       } catch {
         setView("gate");
       }
@@ -45,9 +48,6 @@ export default function Page() {
 
   async function handleEnableAccess() {
     try {
-      if (typeof document.requestStorageAccess !== "function") {
-        throw new Error("requestStorageAccess is unsupported in this context (needs HTTPS)");
-      }
       await document.requestStorageAccess();
       setGateError("");
       setView(hasSessionCookie() ? "dashboard" : "login");
@@ -70,7 +70,9 @@ export default function Page() {
     clearSessionCookie();
     setUsername("");
     setPassword("");
-    setView("login");
+    setView("login"); // stays on login here — same page session, no reload yet.
+                       // The gate only reappears if the page is refreshed
+                       // afterward with no cookie present (see useEffect above).
   }
 
   return (
