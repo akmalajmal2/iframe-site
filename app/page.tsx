@@ -29,6 +29,10 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
+        console.log(
+          'checking storage access',
+          await document.hasStorageAccess()
+        );
         if (typeof document.requestStorageAccess !== 'function') {
           // API unsupported (e.g. insecure context) — fall back as if access is already available
           setView(hasSessionCookie() ? 'dashboard' : 'login');
