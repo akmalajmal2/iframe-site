@@ -27,6 +27,8 @@ export default function Page() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
+  console.log('testing');
+
   useEffect(() => {
     (async () => {
       // If a session cookie already exists (unpartitioned access must have
