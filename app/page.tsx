@@ -33,14 +33,17 @@ export default function Page() {
           'checking storage access',
           await document.hasStorageAccess()
         );
-        if (typeof document.hasStorageAccess !== 'function') {
+        if (typeof document.requestStorageAccess !== 'function') {
           // API unsupported (e.g. insecure context) — fall back as if access is already available
           setView(hasSessionCookie() ? 'dashboard' : 'login');
           return;
         }
-        // Pure read only — never silently requests/grants access.
-        const has = await document.hasStorageAccess();
-        setView(has ? (hasSessionCookie() ? 'dashboard' : 'login') : 'gate');
+        // Try silently first. If a grant already exists (returning user),
+        // this resolves instantly with no prompt and no user gesture needed.
+        // It only rejects when a fresh user gesture is genuinely required
+        // (first-ever visit, or a previously cleared/expired grant).
+        await document.requestStorageAccess();
+        setView(hasSessionCookie() ? 'dashboard' : 'login');
       } catch {
         setView('gate');
       }
