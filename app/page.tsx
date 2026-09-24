@@ -29,17 +29,18 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
-        console.log('checking', await document.hasStorageAccess());
-        if (typeof document.requestStorageAccess !== 'function') {
+        console.log(
+          'checking storage access',
+          await document.hasStorageAccess()
+        );
+        if (typeof document.hasStorageAccess !== 'function') {
           // API unsupported (e.g. insecure context) — fall back as if access is already available
           setView(hasSessionCookie() ? 'dashboard' : 'login');
           return;
         }
-        // Try silently first — if a grant already exists, this resolves
-        // without a prompt or a user gesture. Only throws if a fresh
-        // gesture is required (first time, or grant expired).
-        await document.requestStorageAccess();
-        setView(hasSessionCookie() ? 'dashboard' : 'login');
+        // Pure read only — never silently requests/grants access.
+        const has = await document.hasStorageAccess();
+        setView(has ? (hasSessionCookie() ? 'dashboard' : 'login') : 'gate');
       } catch {
         setView('gate');
       }
