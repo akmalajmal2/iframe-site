@@ -28,31 +28,14 @@ export default function Page() {
 
   useEffect(() => {
     (async () => {
-      try {
-        if (typeof document.requestStorageAccess !== 'function') {
-          // API unsupported (e.g. insecure context) — fall back as if access is already available
-          setView(hasSessionCookie() ? 'dashboard' : 'login');
-          return;
-        }
-        // Try silently first. If a grant already exists (returning user),
-        // this resolves instantly with no prompt and no user gesture needed.
-        // It only rejects when a fresh user gesture is genuinely required
-        // (first-ever visit, or a previously cleared/expired grant).
-        await document.requestStorageAccess();
-        setView(hasSessionCookie() ? 'dashboard' : 'login');
-      } catch {
-        setView('gate');
-      }
+      console.log('checking', await document.hasStorageAccess());
+      const has = await document.hasStorageAccess();
+      setView(has ? (hasSessionCookie() ? 'dashboard' : 'login') : 'gate');
     })();
   }, []);
 
   async function handleEnableAccess() {
     try {
-      if (typeof document.requestStorageAccess !== 'function') {
-        throw new Error(
-          'requestStorageAccess is unsupported in this context (needs HTTPS)'
-        );
-      }
       await document.requestStorageAccess();
       setGateError('');
       setView(hasSessionCookie() ? 'dashboard' : 'login');
@@ -80,8 +63,6 @@ export default function Page() {
 
   return (
     <div style={styles.page}>
-      {view === 'loading' && <div style={styles.status}>Loading…</div>}
-
       {view === 'gate' && (
         <div style={styles.card}>
           <h2 style={styles.h2}>Storage access needed</h2>
