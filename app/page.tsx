@@ -2,142 +2,187 @@
 
 import { useEffect, useState } from 'react';
 
-const COOKIE_NAME = 'session';
+type View = 'loading' | 'gate' | 'login' | 'dashboard';
 
-function readCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
+function hasSessionCookie(): boolean {
+  return document.cookie
+    .split('; ')
+    .some((c) => c.startsWith('session=loggedin'));
 }
 
-function setSessionCookie(username: string) {
-  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(username)}; SameSite=None; Secure; path=/; max-age=${60 * 60 * 24}`;
+function setSessionCookie() {
+  document.cookie =
+    'session=loggedin; Secure; SameSite=None; path=/; max-age=3600';
 }
 
 function clearSessionCookie() {
-  document.cookie = `${COOKIE_NAME}=; SameSite=None; Secure; path=/; max-age=0`;
+  document.cookie = 'session=; Secure; SameSite=None; path=/; max-age=0';
 }
 
-type View = 'checking' | 'no-access' | 'login' | 'dashboard';
-
-// This is the page that gets iframed by site-a-embedder.
-// It's the "third-party" widget that needs storage access before it can
-// touch its own cookies.
-export default function EmbeddedWidget() {
-  const [supported, setSupported] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [view, setView] = useState<View>('checking');
-  const [error, setError] = useState<string | null>(null);
+export default function Page() {
+  const [view, setView] = useState<View>('loading');
+  const [gateError, setGateError] = useState('');
+  const [loginError, setLoginError] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
-    if (typeof document === 'undefined' || !('hasStorageAccess' in document)) {
-      setSupported(false);
-      return;
-    }
-    console.log('has access', document.hasStorageAccess());
-    document.hasStorageAccess().then((granted) => {
-      console.log('[site-b] hasStorageAccess():', granted);
-      setHasAccess(granted);
-      // Only look at the cookie once access is confirmed - not before.
-      setView(
-        granted
-          ? readCookie(COOKIE_NAME)
-            ? 'dashboard'
-            : 'login'
-          : 'no-access'
-      );
-    });
+    (async () => {
+      console.log('checking', await document.hasStorageAccess());
+      const has = await document.hasStorageAccess();
+      setView(has ? (hasSessionCookie() ? 'dashboard' : 'login') : 'gate');
+    })();
   }, []);
 
-  const handleEnableAccess = async () => {
-    setError(null);
+  async function handleEnableAccess() {
     try {
-      // Must run synchronously inside this click handler - a user gesture.
       await document.requestStorageAccess();
-      setHasAccess(true);
-      setView(readCookie(COOKIE_NAME) ? 'dashboard' : 'login');
-    } catch {
-      setError('Storage access was denied.');
+      setGateError('');
+      setView(hasSessionCookie() ? 'dashboard' : 'login');
+    } catch (err) {
+      setGateError('Access denied by browser: ' + (err as Error).message);
     }
-  };
+  }
 
-  const handleLogin = (username: string) => {
-    // Only reachable once hasAccess is true - safe to write the cookie now.
-    setSessionCookie(username);
-    setView('dashboard');
-  };
+  function handleLogin() {
+    if (username === 'admin' && password === 'admin123') {
+      setLoginError(false);
+      setSessionCookie();
+      setView('dashboard');
+    } else {
+      setLoginError(true);
+    }
+  }
 
-  const handleLogout = () => {
+  function handleLogout() {
     clearSessionCookie();
+    setUsername('');
+    setPassword('');
     setView('login');
-  };
-
-  if (!supported) {
-    return <p>Storage Access API isn&apos;t supported in this browser.</p>;
-  }
-
-  if (view === 'checking') {
-    return <p>Checking storage access…</p>;
-  }
-
-  // --- Restriction: no cookie is ever read or written until access is granted ---
-  if (view === 'no-access' || !hasAccess) {
-    return (
-      <div>
-        <p>This embedded widget can&apos;t read or set cookies here yet.</p>
-        <button onClick={handleEnableAccess}>Enable storage access</button>
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      </div>
-    );
-  }
-
-  if (view === 'login') {
-    return <LoginForm onLogin={handleLogin} />;
   }
 
   return (
-    <Dashboard
-      username={readCookie(COOKIE_NAME) ?? ''}
-      onLogout={handleLogout}
-    />
-  );
-}
+    <div style={styles.page}>
+      {view === 'gate' && (
+        <div style={styles.card}>
+          <h2 style={styles.h2}>Storage access needed</h2>
+          <p style={styles.sub}>
+            This site is embedded cross-site. Click below to allow it to use its
+            own cookies.
+          </p>
+          <button style={styles.button} onClick={handleEnableAccess}>
+            Allow storage access
+          </button>
+          {gateError && <div style={styles.status}>{gateError}</div>}
+        </div>
+      )}
 
-function LoginForm({ onLogin }: { onLogin: (username: string) => void }) {
-  const [username, setUsername] = useState('');
+      {view === 'login' && (
+        <div style={styles.card}>
+          <h2 style={styles.h2}>Sign in</h2>
+          <p style={styles.sub}>Demo credentials: admin / admin123</p>
+          {loginError && <div style={styles.error}>Invalid credentials</div>}
+          <input
+            style={styles.input}
+            placeholder="Username"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="Password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button style={styles.button} onClick={handleLogin}>
+            Login
+          </button>
+        </div>
+      )}
 
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (username.trim()) onLogin(username.trim());
-      }}
-    >
-      <p>Not logged in.</p>
-      <input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="username"
-      />
-      <button type="submit">Log in</button>
-    </form>
-  );
-}
-
-function Dashboard({
-  username,
-  onLogout,
-}: {
-  username: string;
-  onLogout: () => void;
-}) {
-  return (
-    <div>
-      <p>✅ Logged in as {username}</p>
-      <p>
-        This cookie persists across reloads as long as storage access stays
-        granted.
-      </p>
-      <button onClick={onLogout}>Log out</button>
+      {view === 'dashboard' && (
+        <div style={styles.card}>
+          <div style={styles.dashRow}>
+            <h2 style={{ ...styles.h2, margin: 0 }}>Dashboard</h2>
+            <span style={styles.badge}>Logged in</span>
+          </div>
+          <p style={styles.sub}>
+            Session cookie is being read successfully from this iframe&apos;s
+            own origin.
+          </p>
+          <button
+            style={{ ...styles.button, ...styles.logout }}
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+const styles: { [key: string]: React.CSSProperties } = {
+  page: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    padding: 16,
+  },
+  card: {
+    background: '#1e293b',
+    border: '1px solid #334155',
+    borderRadius: 10,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+  },
+  h2: { margin: '0 0 6px', fontSize: 18 },
+  sub: { margin: '0 0 20px', color: '#94a3b8', fontSize: 13 },
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    marginBottom: 12,
+    borderRadius: 6,
+    border: '1px solid #334155',
+    background: '#0f172a',
+    color: '#e2e8f0',
+    fontSize: 14,
+  },
+  button: {
+    width: '100%',
+    padding: 10,
+    border: 'none',
+    borderRadius: 6,
+    background: '#6366f1',
+    color: 'white',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontSize: 14,
+  },
+  logout: { background: '#334155', marginTop: 8 },
+  status: {
+    marginTop: 14,
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  error: { color: '#f87171', fontSize: 12, margin: '-6px 0 12px' },
+  dashRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  badge: {
+    background: '#16a34a',
+    color: 'white',
+    fontSize: 11,
+    padding: '3px 8px',
+    borderRadius: 999,
+  },
+};

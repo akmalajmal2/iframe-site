@@ -1,9 +1,17 @@
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+import "./globals.css";
+
+export const metadata = {
+  title: "Iframe Site",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: 'system-ui, sans-serif', padding: 16, margin: 0 }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
