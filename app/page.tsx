@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type View = "loading" | "gate" | "login" | "dashboard";
+type View = "loading" | "login" | "dashboard";
 
 function hasSessionCookie(): boolean {
   return document.cookie.split("; ").some((c) => c.startsWith("session=loggedin"));
@@ -18,45 +18,49 @@ function clearSessionCookie() {
 
 export default function Page() {
   const [view, setView] = useState<View>("loading");
-  const [gateError, setGateError] = useState("");
+  const [storageAccessEnabled, setStorageAccessEnabled] = useState(false);
+  const [enableError, setEnableError] = useState("");
   const [loginError, setLoginError] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
     (async () => {
-      // Check the cookie FIRST. If it exists, go straight to dashboard —
-      // never show the gate, no matter what happens with storage access.
+      // If a session cookie already exists (unpartitioned access must have
+      // worked before), go straight to dashboard — no banner needed.
       if (hasSessionCookie()) {
+        setStorageAccessEnabled(true);
         setView("dashboard");
         return;
       }
-      // No cookie = not logged in. This is the only case where the gate
-      // is relevant, so this is the only path that touches the API.
-      try {
-        if (typeof document.requestStorageAccess !== "function") {
-          setView("login");
-          return;
-        }
-        await document.requestStorageAccess();
-        setView("login");
-      } catch {
-        setView("gate");
+      // Not logged in — check current status to decide whether to show
+      // the banner. This is a pure read, informational only; it does
+      // NOT block the login form either way.
+      if (typeof document.hasStorageAccess === "function") {
+        const has = await document.hasStorageAccess();
+        setStorageAccessEnabled(has);
       }
+      setView("login");
     })();
   }, []);
 
   async function handleEnableAccess() {
     try {
+      if (typeof document.requestStorageAccess !== "function") {
+        throw new Error("Not supported in this context (needs HTTPS)");
+      }
       await document.requestStorageAccess();
-      setGateError("");
-      setView(hasSessionCookie() ? "dashboard" : "login");
+      setStorageAccessEnabled(true);
+      setEnableError("");
     } catch (err) {
-      setGateError("Access denied by browser: " + (err as Error).message);
+      setEnableError("Access denied: " + (err as Error).message);
     }
   }
 
   function handleLogin() {
+    // Login always works, with or without storage access.
+    // Without it, the cookie write may not survive a refresh —
+    // that's expected, not something to hide from the user.
     if (username === "admin" && password === "admin123") {
       setLoginError(false);
       setSessionCookie();
@@ -70,32 +74,31 @@ export default function Page() {
     clearSessionCookie();
     setUsername("");
     setPassword("");
-    setView("login"); // stays on login here — same page session, no reload yet.
-                       // The gate only reappears if the page is refreshed
-                       // afterward with no cookie present (see useEffect above).
+    setView("login");
   }
 
   return (
     <div style={styles.page}>
       {view === "loading" && <div style={styles.status}>Loading…</div>}
 
-      {view === "gate" && (
-        <div style={styles.card}>
-          <h2 style={styles.h2}>Storage access needed</h2>
-          <p style={styles.sub}>
-            This site is embedded cross-site. Click below to allow it to use its own cookies.
-          </p>
-          <button style={styles.button} onClick={handleEnableAccess}>
-            Allow storage access
-          </button>
-          {gateError && <div style={styles.status}>{gateError}</div>}
-        </div>
-      )}
-
       {view === "login" && (
         <div style={styles.card}>
           <h2 style={styles.h2}>Sign in</h2>
           <p style={styles.sub}>Demo credentials: admin / admin123</p>
+
+          {!storageAccessEnabled && (
+            <div style={styles.banner}>
+              <p style={styles.bannerText}>
+                Storage access isn&apos;t enabled. You can still log in, but
+                the session may not persist after a refresh.
+              </p>
+              <button style={styles.bannerButton} onClick={handleEnableAccess}>
+                Enable storage access
+              </button>
+              {enableError && <div style={styles.error}>{enableError}</div>}
+            </div>
+          )}
+
           {loginError && <div style={styles.error}>Invalid credentials</div>}
           <input
             style={styles.input}
@@ -154,6 +157,25 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   h2: { margin: "0 0 6px", fontSize: 18 },
   sub: { margin: "0 0 20px", color: "#94a3b8", fontSize: 13 },
+  banner: {
+    background: "#312e81",
+    border: "1px solid #4338ca",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  bannerText: { margin: "0 0 10px", fontSize: 12, color: "#c7d2fe", lineHeight: 1.4 },
+  bannerButton: {
+    width: "100%",
+    padding: 8,
+    border: "none",
+    borderRadius: 6,
+    background: "#4f46e5",
+    color: "white",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontSize: 13,
+  },
   input: {
     width: "100%",
     padding: "10px 12px",
@@ -177,7 +199,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   logout: { background: "#334155", marginTop: 8 },
   status: { marginTop: 14, fontSize: 12, color: "#64748b", textAlign: "center" },
-  error: { color: "#f87171", fontSize: 12, margin: "-6px 0 12px" },
+  error: { color: "#f87171", fontSize: 12, margin: "8px 0 0" },
   dashRow: {
     display: "flex",
     justifyContent: "space-between",
