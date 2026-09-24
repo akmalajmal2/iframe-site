@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 type View = 'loading' | 'login' | 'dashboard';
 
 function hasSessionCookie(): boolean {
+  if (typeof document === 'undefined') return false;
   return document.cookie
     .split('; ')
     .some((c) => c.startsWith('session=loggedin'));
@@ -27,12 +28,12 @@ export default function Page() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  console.log('testing');
-
   useEffect(() => {
     (async () => {
       // If a session cookie already exists (unpartitioned access must have
       // worked before), go straight to dashboard — no banner needed.
+
+      console.log('cookie storage access', document.hasStorageAccess());
       if (hasSessionCookie()) {
         setStorageAccessEnabled(true);
         setView('dashboard');
@@ -81,8 +82,6 @@ export default function Page() {
     setPassword('');
     setView('login');
   }
-
-  console.log(432, hasSessionCookie());
 
   return (
     <div style={styles.page}>
