@@ -34,6 +34,7 @@ export default function Page() {
       // worked before), go straight to dashboard — no banner needed.
 
       console.log('cookie storage access', document.hasStorageAccess());
+      console.log('is cookie exist', hasSessionCookie());
       if (hasSessionCookie()) {
         setStorageAccessEnabled(true);
         setView('dashboard');
