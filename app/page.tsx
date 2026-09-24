@@ -33,8 +33,6 @@ export default function Page() {
       // If a session cookie already exists (unpartitioned access must have
       // worked before), go straight to dashboard — no banner needed.
 
-      console.log('cookie storage access', document.hasStorageAccess());
-      console.log('is cookie exist', hasSessionCookie());
       if (hasSessionCookie()) {
         setStorageAccessEnabled(true);
         setView('dashboard');
@@ -83,6 +81,9 @@ export default function Page() {
     setPassword('');
     setView('login');
   }
+
+  console.log('cookie storage access', document.hasStorageAccess());
+  console.log('is cookie exist', hasSessionCookie());
 
   return (
     <div style={styles.page}>
