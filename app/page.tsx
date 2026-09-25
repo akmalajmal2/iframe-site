@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 type View = 'loading' | 'gate' | 'login' | 'dashboard';
 
 function hasSessionCookie(): boolean {
-  if (typeof document === 'undefined') return false;
   return document.cookie
     .split('; ')
     .some((c) => c.startsWith('session=loggedin'));
@@ -13,11 +12,11 @@ function hasSessionCookie(): boolean {
 
 function setSessionCookie() {
   document.cookie =
-    'session=loggedin; Secure; SameSite=None; path=/; max-age=3600;';
+    'session=loggedin; Secure; SameSite=None; path=/; max-age=3600';
 }
 
 function clearSessionCookie() {
-  document.cookie = 'session=; Secure; SameSite=None; path=/; max-age=0;';
+  document.cookie = 'session=; Secure; SameSite=None; path=/; max-age=0';
 }
 
 export default function Page() {
@@ -29,46 +28,37 @@ export default function Page() {
 
   useEffect(() => {
     (async () => {
-      // Fallback for browsers that do not support Storage Access API
-      if (!document.hasStorageAccess) {
-        setView(hasSessionCookie() ? 'dashboard' : 'login');
-        return;
-      }
-
       try {
-        const has = await document.hasStorageAccess();
-        console.log('is storage access enabled:', has);
-
-        if (has) {
+        console.log(
+          'checking storage access',
+          await document.hasStorageAccess()
+        );
+        if (typeof document.hasStorageAccess !== 'function') {
+          // API unsupported (e.g. insecure context) — fall back as if access is already available
           setView(hasSessionCookie() ? 'dashboard' : 'login');
           return;
         }
-
-        // hasStorageAccess is false — attempt silent request on load
-        await document.requestStorageAccess();
-        setView(hasSessionCookie() ? 'dashboard' : 'login');
-      } catch (err) {
-        // Silent request rejected (requires user interaction / explicit gesture)
+        // Pure read only — never silently requests/grants access.
+        const has = await document.hasStorageAccess();
+        setView(has ? (hasSessionCookie() ? 'dashboard' : 'login') : 'gate');
+      } catch {
         setView('gate');
       }
     })();
   }, []);
 
   async function handleEnableAccess() {
-    if (!document.requestStorageAccess) {
-      setView(hasSessionCookie() ? 'dashboard' : 'login');
-      return;
-    }
-
     try {
-      // User gesture triggered: shows browser prompt if necessary
+      if (typeof document.requestStorageAccess !== 'function') {
+        throw new Error(
+          'requestStorageAccess is unsupported in this context (needs HTTPS)'
+        );
+      }
       await document.requestStorageAccess();
       setGateError('');
       setView(hasSessionCookie() ? 'dashboard' : 'login');
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Access request failed';
-      setGateError('Access denied by browser: ' + message);
+      setGateError('Access denied by browser: ' + (err as Error).message);
     }
   }
 
@@ -91,13 +81,7 @@ export default function Page() {
 
   return (
     <div style={styles.page}>
-      {view === 'loading' && (
-        <div style={styles.card}>
-          <p style={{ ...styles.sub, margin: 0, textAlign: 'center' }}>
-            Checking storage permissions...
-          </p>
-        </div>
-      )}
+      {view === 'loading' && <div style={styles.status}>Loading…</div>}
 
       {view === 'gate' && (
         <div style={styles.card}>
@@ -204,7 +188,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   status: {
     marginTop: 14,
     fontSize: 12,
-    color: '#f87171',
+    color: '#64748b',
     textAlign: 'center',
   },
   error: { color: '#f87171', fontSize: 12, margin: '-6px 0 12px' },
