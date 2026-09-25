@@ -29,6 +29,7 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       const has = await document.hasStorageAccess();
+      console.log('is storage access enabled', has);
       if (has) {
         setView(hasSessionCookie() ? 'dashboard' : 'login');
         return;
