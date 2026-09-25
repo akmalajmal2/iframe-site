@@ -13,11 +13,11 @@ function hasSessionCookie(): boolean {
 
 function setSessionCookie() {
   document.cookie =
-    'session=loggedin; Secure; SameSite=None; path=/; max-age=3600; Partitioned';
+    'session=loggedin; Secure; SameSite=None; path=/; max-age=3600;';
 }
 
 function clearSessionCookie() {
-  document.cookie = 'session=; Secure; SameSite=None; path=/; max-age=0';
+  document.cookie = 'session=; Secure; SameSite=None; path=/; max-age=0;';
 }
 
 export default function Page() {
