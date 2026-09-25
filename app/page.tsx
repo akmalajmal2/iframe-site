@@ -28,9 +28,18 @@ export default function Page() {
 
   useEffect(() => {
     (async () => {
-      console.log('checking', await document.hasStorageAccess());
       const has = await document.hasStorageAccess();
-      setView(has ? (hasSessionCookie() ? 'dashboard' : 'login') : 'gate');
+      if (has) {
+        setView(hasSessionCookie() ? 'dashboard' : 'login');
+        return;
+      }
+      // hasStorageAccess is false — try requesting directly, no button click.
+      try {
+        await document.requestStorageAccess();
+        setView(hasSessionCookie() ? 'dashboard' : 'login');
+      } catch {
+        setView('gate');
+      }
     })();
   }, []);
 
