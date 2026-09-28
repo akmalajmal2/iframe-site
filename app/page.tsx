@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-type View = 'loading' | 'gate' | 'login' | 'dashboard';
+type View = 'loading' | 'login' | 'dashboard';
 
 function hasSessionCookie(): boolean {
   if (typeof document === 'undefined') return false;
@@ -22,10 +22,10 @@ function clearSessionCookie() {
 
 export default function Page() {
   const [view, setView] = useState<View>('loading');
-  const [gateError, setGateError] = useState('');
-  const [loginError, setLoginError] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -39,46 +39,44 @@ export default function Page() {
         const has = await document.hasStorageAccess();
         console.log('is storage access enabled:', has);
 
-        if (has) {
-          setView(hasSessionCookie() ? 'dashboard' : 'login');
-          return;
+        if (!has) {
+          // Silent attempt on load: succeeds only if a grant already exists
+          await document.requestStorageAccess();
         }
-
-        // hasStorageAccess is false — attempt silent request on load
-        await document.requestStorageAccess();
         setView(hasSessionCookie() ? 'dashboard' : 'login');
-      } catch (err) {
-        // Silent request rejected (requires user interaction / explicit gesture)
-        setView('gate');
+      } catch {
+        // No grant yet — show login; permission is requested on Login click
+        setView('login');
       }
     })();
   }, []);
 
-  async function handleEnableAccess() {
-    if (!document.requestStorageAccess) {
-      setView(hasSessionCookie() ? 'dashboard' : 'login');
+  async function handleLogin() {
+    if (username !== 'admin' || password !== 'admin123') {
+      setLoginError('Invalid credentials');
       return;
     }
 
+    setLoginError('');
+    setSubmitting(true);
+
     try {
-      // User gesture triggered: shows browser prompt if necessary
-      await document.requestStorageAccess();
-      setGateError('');
-      setView(hasSessionCookie() ? 'dashboard' : 'login');
+      // Called directly from the click handler (valid user gesture),
+      // so the browser shows the "allow embedded content" prompt here.
+      if (document.requestStorageAccess) {
+        const has = document.hasStorageAccess
+          ? await document.hasStorageAccess()
+          : false;
+        if (!has) await document.requestStorageAccess();
+      }
+      setSessionCookie();
+      setView('dashboard');
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Access request failed';
-      setGateError('Access denied by browser: ' + message);
-    }
-  }
-
-  function handleLogin() {
-    if (username === 'admin' && password === 'admin123') {
-      setLoginError(false);
-      setSessionCookie();
-      setView('dashboard');
-    } else {
-      setLoginError(true);
+      setLoginError('Storage access denied: ' + message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -86,6 +84,7 @@ export default function Page() {
     clearSessionCookie();
     setUsername('');
     setPassword('');
+    setLoginError('');
     setView('login');
   }
 
@@ -94,22 +93,8 @@ export default function Page() {
       {view === 'loading' && (
         <div style={styles.card}>
           <p style={{ ...styles.sub, margin: 0, textAlign: 'center' }}>
-            Checking storage permissions...
+            Loading...
           </p>
-        </div>
-      )}
-
-      {view === 'gate' && (
-        <div style={styles.card}>
-          <h2 style={styles.h2}>Storage access needed</h2>
-          <p style={styles.sub}>
-            This site is embedded cross-site. Click below to allow it to use its
-            own cookies.
-          </p>
-          <button style={styles.button} onClick={handleEnableAccess}>
-            Allow storage access
-          </button>
-          {gateError && <div style={styles.status}>{gateError}</div>}
         </div>
       )}
 
@@ -117,7 +102,7 @@ export default function Page() {
         <div style={styles.card}>
           <h2 style={styles.h2}>Sign in</h2>
           <p style={styles.sub}>Demo credentials: admin / admin123</p>
-          {loginError && <div style={styles.error}>Invalid credentials</div>}
+          {loginError && <div style={styles.error}>{loginError}</div>}
           <input
             style={styles.input}
             placeholder="Username"
@@ -133,8 +118,12 @@ export default function Page() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <button style={styles.button} onClick={handleLogin}>
-            Login
+          <button
+            style={{ ...styles.button, opacity: submitting ? 0.7 : 1 }}
+            onClick={handleLogin}
+            disabled={submitting}
+          >
+            {submitting ? 'Signing in...' : 'Login'}
           </button>
         </div>
       )}
@@ -201,12 +190,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 14,
   },
   logout: { background: '#334155', marginTop: 8 },
-  status: {
-    marginTop: 14,
-    fontSize: 12,
-    color: '#f87171',
-    textAlign: 'center',
-  },
   error: { color: '#f87171', fontSize: 12, margin: '-6px 0 12px' },
   dashRow: {
     display: 'flex',
