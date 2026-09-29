@@ -29,23 +29,39 @@ export default function Page() {
 
   useEffect(() => {
     (async () => {
-      // Fallback for browsers that do not support Storage Access API
-      if (!document.hasStorageAccess) {
+      // 1. Fallback for older browsers
+      if (!document.hasStorageAccess || !navigator.permissions) {
         setView(hasSessionCookie() ? 'dashboard' : 'login');
         return;
       }
 
       try {
-        const has = await document.hasStorageAccess();
-        console.log('is storage access enabled:', has);
-
-        if (!has) {
-          // Silent attempt on load: succeeds only if a grant already exists
-          await document.requestStorageAccess();
+        // 2. Check if we ALREADY have active access right now
+        const currentAccess = await document.hasStorageAccess();
+        if (currentAccess && hasSessionCookie()) {
+          setView('dashboard');
+          return;
         }
-        setView(hasSessionCookie() ? 'dashboard' : 'login');
-      } catch {
-        // No grant yet — show login; permission is requested on Login click
+
+        // 3. SAFE CHECK: Check if Chrome/Firefox has a historical "Allow" saved
+        const permission = await navigator.permissions.query({
+          name: 'storage-access',
+        });
+
+        if (permission.state === 'granted') {
+          // Safe to call silently because the browser history explicitly allowed it!
+          await document.requestStorageAccess();
+          if (hasSessionCookie()) {
+            setView('dashboard');
+            return;
+          }
+        }
+
+        // 4. If state is 'prompt' or 'denied', do NOT call requestStorageAccess() here.
+        // Simply show the login page and wait for a click.
+        setView('login');
+      } catch (err) {
+        // Fallback to login if anything fails
         setView('login');
       }
     })();
