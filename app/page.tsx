@@ -68,7 +68,8 @@ export default function Page() {
         const has = document.hasStorageAccess
           ? await document.hasStorageAccess()
           : false;
-        if (!has) await document.requestStorageAccess();
+        // if (!has) await document.requestStorageAccess();
+        await document.requestStorageAccess();
       }
       setSessionCookie();
       setView('dashboard');
