@@ -41,8 +41,7 @@ export default function Page() {
 
         if (!has) {
           // Silent attempt on load: succeeds only if a grant already exists
-          // await document.requestStorageAccess();
-          console.log('helll');
+          await document.requestStorageAccess();
         }
         setView(hasSessionCookie() ? 'dashboard' : 'login');
       } catch {
@@ -68,8 +67,7 @@ export default function Page() {
         const has = document.hasStorageAccess
           ? await document.hasStorageAccess()
           : false;
-        // if (!has) await document.requestStorageAccess();
-        await document.requestStorageAccess();
+        if (!has) await document.requestStorageAccess();
       }
       setSessionCookie();
       setView('dashboard');
